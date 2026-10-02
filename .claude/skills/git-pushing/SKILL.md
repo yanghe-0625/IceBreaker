@@ -30,6 +30,12 @@ Only pass a message when the user explicitly provides one:
 bash .claude/skills/git-pushing/scripts/smart_commit.sh "feat: add feature"
 ```
 
+To only preview the pirate message (no staging, commit, or push):
+```bash
+bash .claude/skills/git-pushing/scripts/smart_commit.sh --dry-run
+```
+It uses uncommitted changes, or the last commit when the working tree is clean.
+
 ### AI commit messages
 
 When no message is given, the script pipes the staged diff (first 20,000 chars) to the Claude Code CLI (`claude -p`) and uses its reply as the commit message:
@@ -45,4 +51,4 @@ If the `claude` CLI is missing or returns nothing, the script falls back to a he
 - Staging all changes, including untracked files
 - Commit message (AI pirate message, heuristic fallback, or the provided one)
 - Claude footer
-- Pushing to the branch's tracking remote (falls back to `origin`), with `-u` for new branches
+- Pushing to the branch's tracking remote, then `remote.pushDefault`, then `origin`, with `-u` for new branches

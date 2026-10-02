@@ -15,12 +15,44 @@ info() { echo -e "${GREEN}→${NC} $1"; }
 warn() { echo -e "${YELLOW}⚠${NC} $1"; }
 error() { echo -e "${RED}✗${NC} $1" >&2; }
 
+# Ask Claude Code CLI for a pirate-style commit message from the diff on stdin
+generate_pirate_message() {
+    command -v claude >/dev/null 2>&1 || return 1
+
+    head -c 20000 | claude -p "Write a single-line git commit message for the diff on stdin. \
+Use Conventional Commits format: type(scope): description. \
+Keep the type and scope as normal English keywords, but write the description like a pirate. \
+Keep it under 72 characters. Output only the commit message, with no quotes, code fences, or explanation." 2>/dev/null \
+        | grep -v '^[[:space:]]*$' | grep -v '^```' | head -1 \
+        | sed -e 's/^[`"'\'' ]*//' -e 's/[`"'\'' ]*$//'
+}
+
+# Dry run: print a pirate message only, without staging, committing, or pushing.
+# Uses uncommitted changes, or the last commit when the working tree is clean.
+if [ "$1" = "--dry-run" ]; then
+    DIFF=$(git diff HEAD)
+    if [ -z "$DIFF" ]; then
+        info "No uncommitted changes, using last commit: $(git log --oneline -1)"
+        DIFF=$(git show HEAD --format=)
+    fi
+    info "Asking Claude for a pirate commit message..."
+    COMMIT_MSG=$(echo "$DIFF" | generate_pirate_message || true)
+    if [ -z "$COMMIT_MSG" ]; then
+        error "Claude CLI unavailable or failed"
+        exit 1
+    fi
+    info "Pirate commit message: $COMMIT_MSG"
+    exit 0
+fi
+
 # Get current branch
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 info "Current branch: $CURRENT_BRANCH"
 
-# Push to the branch's tracking remote, falling back to origin
-REMOTE=$(git config --get "branch.${CURRENT_BRANCH}.remote" || echo "origin")
+# Push to the branch's tracking remote, then remote.pushDefault, then origin
+REMOTE=$(git config --get "branch.${CURRENT_BRANCH}.remote" \
+    || git config --get remote.pushDefault \
+    || echo "origin")
 
 # Check if there are changes (including untracked files)
 if [ -z "$(git status --porcelain)" ]; then
@@ -77,22 +109,10 @@ determine_scope() {
     fi
 }
 
-# Ask Claude Code CLI for a pirate-style commit message from the staged diff
-generate_pirate_message() {
-    command -v claude >/dev/null 2>&1 || return 1
-
-    git diff --cached | head -c 20000 | claude -p "Write a single-line git commit message for the staged diff on stdin. \
-Use Conventional Commits format: type(scope): description. \
-Keep the type and scope as normal English keywords, but write the description like a pirate. \
-Keep it under 72 characters. Output only the commit message, with no quotes, code fences, or explanation." 2>/dev/null \
-        | grep -v '^[[:space:]]*$' | grep -v '^```' | head -1 \
-        | sed -e 's/^[`"'\'' ]*//' -e 's/[`"'\'' ]*$//'
-}
-
 # Generate commit message if not provided
 if [ -z "$1" ]; then
     info "Asking Claude for a pirate commit message..."
-    COMMIT_MSG=$(generate_pirate_message || true)
+    COMMIT_MSG=$(git diff --cached | generate_pirate_message || true)
 
     if [ -n "$COMMIT_MSG" ]; then
         info "Generated pirate commit message: $COMMIT_MSG"
