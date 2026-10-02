@@ -45,4 +45,4 @@ If the `claude` CLI is missing or returns nothing, the script falls back to a he
 - Staging all changes, including untracked files
 - Commit message (AI pirate message, heuristic fallback, or the provided one)
 - Claude footer
-- Pushing to the branch's tracking remote (falls back to `origin`), with `-u` for new branches
+- Pushing to the branch's tracking remote, then `remote.pushDefault`, then `origin`, with `-u` for new branches

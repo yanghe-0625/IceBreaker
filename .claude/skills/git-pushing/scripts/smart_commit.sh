@@ -19,8 +19,10 @@ error() { echo -e "${RED}✗${NC} $1" >&2; }
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 info "Current branch: $CURRENT_BRANCH"
 
-# Push to the branch's tracking remote, falling back to origin
-REMOTE=$(git config --get "branch.${CURRENT_BRANCH}.remote" || echo "origin")
+# Push to the branch's tracking remote, then remote.pushDefault, then origin
+REMOTE=$(git config --get "branch.${CURRENT_BRANCH}.remote" \
+    || git config --get remote.pushDefault \
+    || echo "origin")
 
 # Check if there are changes (including untracked files)
 if [ -z "$(git status --porcelain)" ]; then
