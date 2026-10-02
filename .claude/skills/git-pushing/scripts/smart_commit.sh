@@ -19,8 +19,11 @@ error() { echo -e "${RED}✗${NC} $1" >&2; }
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 info "Current branch: $CURRENT_BRANCH"
 
-# Check if there are changes
-if git diff --quiet && git diff --cached --quiet; then
+# Push to the branch's tracking remote, falling back to origin
+REMOTE=$(git config --get "branch.${CURRENT_BRANCH}.remote" || echo "origin")
+
+# Check if there are changes (including untracked files)
+if [ -z "$(git status --porcelain)" ]; then
     warn "No changes to commit"
     exit 0
 fi
@@ -120,13 +123,13 @@ COMMIT_HASH=$(git rev-parse --short HEAD)
 info "Created commit: $COMMIT_HASH"
 
 # Push to remote
-info "Pushing to origin/$CURRENT_BRANCH..."
+info "Pushing to $REMOTE/$CURRENT_BRANCH..."
 
 # Check if branch exists on remote
-if git ls-remote --exit-code --heads origin "$CURRENT_BRANCH" >/dev/null 2>&1; then
+if git ls-remote --exit-code --heads "$REMOTE" "$CURRENT_BRANCH" >/dev/null 2>&1; then
     # Branch exists, just push
-    if git push; then
-        info "Successfully pushed to origin/$CURRENT_BRANCH"
+    if git push "$REMOTE" "$CURRENT_BRANCH"; then
+        info "Successfully pushed to $REMOTE/$CURRENT_BRANCH"
         echo "$DIFF_STAT"
     else
         error "Push failed"
@@ -134,12 +137,12 @@ if git ls-remote --exit-code --heads origin "$CURRENT_BRANCH" >/dev/null 2>&1; t
     fi
 else
     # New branch, push with -u
-    if git push -u origin "$CURRENT_BRANCH"; then
-        info "Successfully pushed new branch to origin/$CURRENT_BRANCH"
+    if git push -u "$REMOTE" "$CURRENT_BRANCH"; then
+        info "Successfully pushed new branch to $REMOTE/$CURRENT_BRANCH"
         echo "$DIFF_STAT"
 
         # Check if it's GitHub and show PR link
-        REMOTE_URL=$(git remote get-url origin)
+        REMOTE_URL=$(git remote get-url "$REMOTE")
         if echo "$REMOTE_URL" | grep -q "github.com"; then
             REPO=$(echo "$REMOTE_URL" | sed -E 's/.*github\.com[:/](.*)\.git/\1/')
             warn "Create PR: https://github.com/$REPO/pull/new/$CURRENT_BRANCH"
