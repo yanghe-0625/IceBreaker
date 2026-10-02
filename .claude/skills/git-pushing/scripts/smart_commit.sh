@@ -33,7 +33,7 @@ if [ "$1" = "--dry-run" ]; then
     DIFF=$(git diff HEAD)
     if [ -z "$DIFF" ]; then
         info "No uncommitted changes, using last commit: $(git log --oneline -1)"
-        DIFF=$(git show HEAD)
+        DIFF=$(git show HEAD --format=)
     fi
     info "Asking Claude for a pirate commit message..."
     COMMIT_MSG=$(echo "$DIFF" | generate_pirate_message || true)
