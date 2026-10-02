@@ -77,33 +77,54 @@ determine_scope() {
     fi
 }
 
+# Ask Claude Code CLI for a pirate-style commit message from the staged diff
+generate_pirate_message() {
+    command -v claude >/dev/null 2>&1 || return 1
+
+    git diff --cached | head -c 20000 | claude -p "Write a single-line git commit message for the staged diff on stdin. \
+Use Conventional Commits format: type(scope): description. \
+Keep the type and scope as normal English keywords, but write the description like a pirate. \
+Keep it under 72 characters. Output only the commit message, with no quotes, code fences, or explanation." 2>/dev/null \
+        | grep -v '^[[:space:]]*$' | grep -v '^```' | head -1 \
+        | sed -e 's/^[`"'\'' ]*//' -e 's/[`"'\'' ]*$//'
+}
+
 # Generate commit message if not provided
 if [ -z "$1" ]; then
-    COMMIT_TYPE=$(determine_commit_type "$STAGED_FILES")
-    SCOPE=$(determine_scope "$STAGED_FILES")
+    info "Asking Claude for a pirate commit message..."
+    COMMIT_MSG=$(generate_pirate_message || true)
 
-    # Count files changed
-    NUM_FILES=$(echo "$STAGED_FILES" | wc -l | xargs)
-
-    # Generate description based on changes
-    if [ "$COMMIT_TYPE" = "docs" ]; then
-        DESCRIPTION="update documentation"
-    elif [ "$COMMIT_TYPE" = "test" ]; then
-        DESCRIPTION="update tests"
-    elif [ "$COMMIT_TYPE" = "chore" ]; then
-        DESCRIPTION="update dependencies"
+    if [ -n "$COMMIT_MSG" ]; then
+        info "Generated pirate commit message: $COMMIT_MSG"
     else
-        DESCRIPTION="update $NUM_FILES file(s)"
-    fi
+        warn "Claude CLI unavailable or failed, falling back to heuristic message"
 
-    # Build commit message
-    if [ -n "$SCOPE" ]; then
-        COMMIT_MSG="${COMMIT_TYPE}(${SCOPE}): ${DESCRIPTION}"
-    else
-        COMMIT_MSG="${COMMIT_TYPE}: ${DESCRIPTION}"
-    fi
+        COMMIT_TYPE=$(determine_commit_type "$STAGED_FILES")
+        SCOPE=$(determine_scope "$STAGED_FILES")
 
-    info "Generated commit message: $COMMIT_MSG"
+        # Count files changed
+        NUM_FILES=$(echo "$STAGED_FILES" | wc -l | xargs)
+
+        # Generate description based on changes
+        if [ "$COMMIT_TYPE" = "docs" ]; then
+            DESCRIPTION="update documentation"
+        elif [ "$COMMIT_TYPE" = "test" ]; then
+            DESCRIPTION="update tests"
+        elif [ "$COMMIT_TYPE" = "chore" ]; then
+            DESCRIPTION="update dependencies"
+        else
+            DESCRIPTION="update $NUM_FILES file(s)"
+        fi
+
+        # Build commit message
+        if [ -n "$SCOPE" ]; then
+            COMMIT_MSG="${COMMIT_TYPE}(${SCOPE}): ${DESCRIPTION}"
+        else
+            COMMIT_MSG="${COMMIT_TYPE}: ${DESCRIPTION}"
+        fi
+
+        info "Generated commit message: $COMMIT_MSG"
+    fi
 else
     COMMIT_MSG="$1"
     info "Using provided message: $COMMIT_MSG"
